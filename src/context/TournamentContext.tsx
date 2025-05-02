@@ -1,639 +1,876 @@
 
-import React, { createContext, useState, useContext, useEffect } from "react";
-import { Match, MatchStatus, Team, Tournament, TournamentFormat } from "@/types";
-import { useAuth } from "./AuthContext";
-import { useToast } from "@/components/ui/use-toast";
+import React, { createContext, useContext, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { Tournament, Team, Match, Player } from "@/types";
+import { DbTournament } from "@/types/supabase-types";
 
-interface TournamentContextType {
-  tournaments: Tournament[];
+interface TournamentContextProps {
   currentTournament: Tournament | null;
+  tournaments: Tournament[];
   isLoading: boolean;
-  createTournament: (tournament: Partial<Tournament>) => Promise<Tournament>;
-  updateTournament: (id: string, tournament: Partial<Tournament>) => Promise<Tournament>;
-  deleteTournament: (id: string) => Promise<void>;
+  fetchTournaments: () => Promise<void>;
+  createTournament: (tournamentData: Partial<Tournament>) => Promise<Tournament | null>;
+  updateTournament: (id: string, tournamentData: Partial<Tournament>) => Promise<Tournament | null>;
+  deleteTournament: (id: string) => Promise<boolean>;
   getTournamentByCode: (code: string) => Promise<Tournament | null>;
-  setCurrentTournament: (tournament: Tournament | null) => void;
-  addTeam: (tournamentId: string, team: Partial<Team>) => Promise<Team>;
-  updateTeam: (tournamentId: string, teamId: string, team: Partial<Team>) => Promise<Team>;
-  deleteTeam: (tournamentId: string, teamId: string) => Promise<void>;
-  createMatch: (tournamentId: string, match: Partial<Match>) => Promise<Match>;
-  updateMatch: (tournamentId: string, matchId: string, match: Partial<Match>) => Promise<Match>;
-  generateRandomMatches: (tournamentId: string) => Promise<Match[]>;
+  getTournament: (id: string) => Promise<Tournament | null>;
+  createTeam: (teamData: Partial<Team>) => Promise<Team | null>;
+  updateTeam: (id: string, teamData: Partial<Team>) => Promise<Team | null>;
+  deleteTeam: (id: string) => Promise<boolean>;
+  createMatch: (matchData: Partial<Match>) => Promise<Match | null>;
+  updateMatch: (id: string, matchData: Partial<Match>) => Promise<Match | null>;
+  deleteMatch: (id: string) => Promise<boolean>;
 }
 
-const TournamentContext = createContext<TournamentContextType | undefined>(undefined);
-
-// Mock data storage - in a real app, this would be an API
-let MOCK_TOURNAMENTS: Tournament[] = [];
+const TournamentContext = createContext<TournamentContextProps | undefined>(undefined);
 
 export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [currentTournament, setCurrentTournament] = useState<Tournament | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const { currentUser } = useAuth();
-  const { toast } = useToast();
+  const [tournaments, setTournaments] = useState<Tournament[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const navigate = useNavigate();
 
-  // Load tournaments from localStorage on mount
-  useEffect(() => {
-    const savedTournaments = localStorage.getItem("cricket_tournaments");
-    if (savedTournaments) {
-      try {
-        const parsed = JSON.parse(savedTournaments);
-        MOCK_TOURNAMENTS = parsed;
-        
-        // If user is logged in, filter tournaments by creator
-        if (currentUser) {
-          setTournaments(parsed.filter((t: Tournament) => t.createdBy === currentUser.id));
-        } else {
-          setTournaments([]);
-        }
-      } catch (e) {
-        console.error("Failed to parse saved tournaments");
+  const fetchTournaments = async () => {
+    try {
+      setIsLoading(true);
+      
+      const { data: tournamentsData, error } = await supabase
+        .from('tournaments')
+        .select('*');
+      
+      if (error) {
+        throw error;
       }
-    }
-    setIsLoading(false);
-  }, [currentUser]);
-
-  // Helper to save tournaments to localStorage
-  const saveTournaments = (tournaments: Tournament[]) => {
-    MOCK_TOURNAMENTS = tournaments;
-    localStorage.setItem("cricket_tournaments", JSON.stringify(tournaments));
-  };
-
-  // Generate a unique secret code
-  const generateSecretCode = (): string => {
-    return Math.random().toString(36).substring(2, 8).toUpperCase();
-  };
-
-  // Create a new tournament
-  const createTournament = async (tournament: Partial<Tournament>): Promise<Tournament> => {
-    if (!currentUser) throw new Error("You must be logged in to create a tournament");
-    
-    setIsLoading(true);
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    const newTournament: Tournament = {
-      id: Date.now().toString(),
-      name: tournament.name || "New Tournament",
-      format: tournament.format || TournamentFormat.KNOCKOUT,
-      createdBy: currentUser.id,
-      secretCode: generateSecretCode(),
-      teams: [],
-      matches: [],
-      ...tournament
-    };
-    
-    const updatedTournaments = [...MOCK_TOURNAMENTS, newTournament];
-    saveTournaments(updatedTournaments);
-    
-    setTournaments(prev => [...prev, newTournament]);
-    setCurrentTournament(newTournament);
-    setIsLoading(false);
-    
-    toast({
-      title: "Success",
-      description: "Tournament created successfully",
-    });
-    
-    return newTournament;
-  };
-
-  // Update an existing tournament
-  const updateTournament = async (id: string, tournamentUpdate: Partial<Tournament>): Promise<Tournament> => {
-    if (!currentUser) throw new Error("You must be logged in to update a tournament");
-    
-    setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    const updatedTournaments = MOCK_TOURNAMENTS.map(t => 
-      t.id === id ? { ...t, ...tournamentUpdate } : t
-    );
-    
-    const updatedTournament = updatedTournaments.find(t => t.id === id);
-    if (!updatedTournament) {
+      
+      const transformedTournaments: Tournament[] = tournamentsData.map((t: DbTournament) => ({
+        id: t.id,
+        name: t.name,
+        format: t.format as any,
+        description: t.description || '',
+        location: t.location || '',
+        logo: t.logo_url || '',
+        startDate: t.start_date || '',
+        endDate: t.end_date || '',
+        secretCode: t.secret_code,
+        createdBy: t.created_by,
+        teams: [],
+        matches: []
+      }));
+      
+      setTournaments(transformedTournaments);
+      return transformedTournaments;
+    } catch (error: any) {
+      toast.error(`Error fetching tournaments: ${error.message}`);
+      return [];
+    } finally {
       setIsLoading(false);
-      throw new Error("Tournament not found");
     }
-    
-    // Check if the user has permission
-    if (updatedTournament.createdBy !== currentUser.id) {
-      setIsLoading(false);
-      throw new Error("You don't have permission to update this tournament");
-    }
-    
-    saveTournaments(updatedTournaments);
-    
-    setTournaments(prev => prev.map(t => 
-      t.id === id ? { ...t, ...tournamentUpdate } : t
-    ));
-    
-    if (currentTournament?.id === id) {
-      setCurrentTournament({ ...currentTournament, ...tournamentUpdate });
-    }
-    
-    setIsLoading(false);
-    toast({
-      title: "Success",
-      description: "Tournament updated successfully",
-    });
-    
-    return updatedTournament;
   };
 
-  // Delete a tournament
-  const deleteTournament = async (id: string): Promise<void> => {
-    if (!currentUser) throw new Error("You must be logged in to delete a tournament");
-    
-    setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    const tournament = MOCK_TOURNAMENTS.find(t => t.id === id);
-    if (!tournament) {
+  const createTournament = async (tournamentData: Partial<Tournament>) => {
+    try {
+      setIsLoading(true);
+      
+      // Generate a random secret code if not provided
+      const secretCode = tournamentData.secretCode || 
+        Math.random().toString(36).substring(2, 8).toUpperCase();
+      
+      // Map to DB schema
+      const dbTournament = {
+        name: tournamentData.name,
+        format: tournamentData.format,
+        description: tournamentData.description,
+        location: tournamentData.location,
+        logo_url: tournamentData.logo,
+        start_date: tournamentData.startDate,
+        end_date: tournamentData.endDate,
+        secret_code: secretCode
+      };
+      
+      const { data, error } = await supabase
+        .from('tournaments')
+        .insert(dbTournament)
+        .select()
+        .single();
+      
+      if (error) {
+        throw error;
+      }
+      
+      // Transform the returned data to match our app's Tournament type
+      const newTournament: Tournament = {
+        id: data.id,
+        name: data.name,
+        format: data.format,
+        description: data.description || '',
+        location: data.location || '',
+        logo: data.logo_url || '',
+        startDate: data.start_date || '',
+        endDate: data.end_date || '',
+        secretCode: data.secret_code,
+        createdBy: data.created_by,
+        teams: [],
+        matches: []
+      };
+      
+      // Add to local state
+      setTournaments([...tournaments, newTournament]);
+      
+      toast.success("Tournament created successfully!");
+      return newTournament;
+    } catch (error: any) {
+      toast.error(`Error creating tournament: ${error.message}`);
+      return null;
+    } finally {
       setIsLoading(false);
-      throw new Error("Tournament not found");
     }
-    
-    // Check if the user has permission
-    if (tournament.createdBy !== currentUser.id) {
-      setIsLoading(false);
-      throw new Error("You don't have permission to delete this tournament");
-    }
-    
-    const updatedTournaments = MOCK_TOURNAMENTS.filter(t => t.id !== id);
-    saveTournaments(updatedTournaments);
-    
-    setTournaments(prev => prev.filter(t => t.id !== id));
-    
-    if (currentTournament?.id === id) {
-      setCurrentTournament(null);
-    }
-    
-    setIsLoading(false);
-    toast({
-      title: "Success",
-      description: "Tournament deleted successfully",
-    });
   };
 
-  // Get a tournament by its secret code
-  const getTournamentByCode = async (code: string): Promise<Tournament | null> => {
-    setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    const tournament = MOCK_TOURNAMENTS.find(t => 
-      t.secretCode.toLowerCase() === code.toLowerCase()
-    );
-    
-    setIsLoading(false);
-    
-    if (tournament) {
+  const updateTournament = async (id: string, tournamentData: Partial<Tournament>) => {
+    try {
+      setIsLoading(true);
+      
+      // Map to DB schema
+      const dbTournament = {
+        name: tournamentData.name,
+        format: tournamentData.format,
+        description: tournamentData.description,
+        location: tournamentData.location,
+        logo_url: tournamentData.logo,
+        start_date: tournamentData.startDate,
+        end_date: tournamentData.endDate
+      };
+      
+      const { data, error } = await supabase
+        .from('tournaments')
+        .update(dbTournament)
+        .eq('id', id)
+        .select()
+        .single();
+      
+      if (error) {
+        throw error;
+      }
+      
+      // Transform the returned data
+      const updatedTournament: Tournament = {
+        id: data.id,
+        name: data.name,
+        format: data.format,
+        description: data.description || '',
+        location: data.location || '',
+        logo: data.logo_url || '',
+        startDate: data.start_date || '',
+        endDate: data.end_date || '',
+        secretCode: data.secret_code,
+        createdBy: data.created_by,
+        teams: [],
+        matches: []
+      };
+      
+      // Update local state
+      setTournaments(
+        tournaments.map(t => (t.id === id ? updatedTournament : t))
+      );
+      
+      if (currentTournament?.id === id) {
+        setCurrentTournament({
+          ...currentTournament,
+          ...updatedTournament
+        });
+      }
+      
+      toast.success("Tournament updated successfully!");
+      return updatedTournament;
+    } catch (error: any) {
+      toast.error(`Error updating tournament: ${error.message}`);
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const deleteTournament = async (id: string) => {
+    try {
+      setIsLoading(true);
+      
+      const { error } = await supabase
+        .from('tournaments')
+        .delete()
+        .eq('id', id);
+      
+      if (error) {
+        throw error;
+      }
+      
+      // Update local state
+      setTournaments(tournaments.filter(t => t.id !== id));
+      
+      if (currentTournament?.id === id) {
+        setCurrentTournament(null);
+      }
+      
+      toast.success("Tournament deleted successfully!");
+      return true;
+    } catch (error: any) {
+      toast.error(`Error deleting tournament: ${error.message}`);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const getTournamentByCode = async (code: string) => {
+    try {
+      setIsLoading(true);
+      
+      const { data, error } = await supabase
+        .from('tournaments')
+        .select(`
+          *,
+          teams:teams(
+            *,
+            players:players(*)
+          ),
+          matches:matches(*)
+        `)
+        .eq('secret_code', code)
+        .single();
+      
+      if (error) {
+        throw error;
+      }
+      
+      if (!data) {
+        toast.error("Tournament not found");
+        return null;
+      }
+      
+      // Transform the tournament data
+      const tournament: Tournament = {
+        id: data.id,
+        name: data.name,
+        format: data.format,
+        description: data.description || '',
+        location: data.location || '',
+        logo: data.logo_url || '',
+        startDate: data.start_date || '',
+        endDate: data.end_date || '',
+        secretCode: data.secret_code,
+        createdBy: data.created_by,
+        teams: data.teams.map((team: any) => ({
+          id: team.id,
+          name: team.name,
+          shortName: team.short_name || '',
+          logo: team.logo_url || '',
+          tournamentId: team.tournament_id,
+          players: team.players.map((player: any) => ({
+            id: player.id,
+            name: player.name,
+            role: player.role || '',
+            batting: player.batting_style || '',
+            bowling: player.bowling_style || '',
+            image: player.image_url || ''
+          }))
+        })),
+        matches: data.matches.map((match: any) => ({
+          id: match.id,
+          tournamentId: match.tournament_id,
+          team1Id: match.team1_id,
+          team2Id: match.team2_id,
+          date: match.match_date || '',
+          time: match.match_time || '',
+          venue: match.venue || '',
+          status: match.status,
+          winner: match.winner_id || '',
+          result: match.winner_id ? {
+            winnerId: match.winner_id,
+            winMargin: match.win_margin,
+            winMarginType: match.win_margin_type
+          } : undefined
+        }))
+      };
+      
       setCurrentTournament(tournament);
+      
+      toast.success(`Accessed tournament: ${tournament.name}`);
       return tournament;
+    } catch (error: any) {
+      toast.error(`Error retrieving tournament: ${error.message}`);
+      return null;
+    } finally {
+      setIsLoading(false);
     }
-    
-    toast({
-      title: "Error",
-      description: "Tournament not found. Check the code and try again.",
-      variant: "destructive",
-    });
-    
-    return null;
   };
 
-  // Add a team to a tournament
-  const addTeam = async (tournamentId: string, team: Partial<Team>): Promise<Team> => {
-    if (!currentUser) throw new Error("You must be logged in to add a team");
-    
-    setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    const tournamentIndex = MOCK_TOURNAMENTS.findIndex(t => t.id === tournamentId);
-    if (tournamentIndex === -1) {
+  const getTournament = async (id: string) => {
+    try {
+      setIsLoading(true);
+      
+      const { data, error } = await supabase
+        .from('tournaments')
+        .select(`
+          *,
+          teams:teams(
+            *,
+            players:players(*)
+          ),
+          matches:matches(*)
+        `)
+        .eq('id', id)
+        .single();
+      
+      if (error) {
+        throw error;
+      }
+      
+      if (!data) {
+        toast.error("Tournament not found");
+        return null;
+      }
+      
+      // Transform the tournament data
+      const tournament: Tournament = {
+        id: data.id,
+        name: data.name,
+        format: data.format,
+        description: data.description || '',
+        location: data.location || '',
+        logo: data.logo_url || '',
+        startDate: data.start_date || '',
+        endDate: data.end_date || '',
+        secretCode: data.secret_code,
+        createdBy: data.created_by,
+        teams: data.teams.map((team: any) => ({
+          id: team.id,
+          name: team.name,
+          shortName: team.short_name || '',
+          logo: team.logo_url || '',
+          tournamentId: team.tournament_id,
+          players: team.players.map((player: any) => ({
+            id: player.id,
+            name: player.name,
+            role: player.role || '',
+            batting: player.batting_style || '',
+            bowling: player.bowling_style || '',
+            image: player.image_url || ''
+          }))
+        })),
+        matches: data.matches.map((match: any) => ({
+          id: match.id,
+          tournamentId: match.tournament_id,
+          team1Id: match.team1_id,
+          team2Id: match.team2_id,
+          date: match.match_date || '',
+          time: match.match_time || '',
+          venue: match.venue || '',
+          status: match.status,
+          winner: match.winner_id || '',
+          result: match.winner_id ? {
+            winnerId: match.winner_id,
+            winMargin: match.win_margin,
+            winMarginType: match.win_margin_type
+          } : undefined
+        }))
+      };
+      
+      setCurrentTournament(tournament);
+      
+      return tournament;
+    } catch (error: any) {
+      toast.error(`Error retrieving tournament: ${error.message}`);
+      return null;
+    } finally {
       setIsLoading(false);
-      throw new Error("Tournament not found");
     }
-    
-    const tournament = MOCK_TOURNAMENTS[tournamentIndex];
-    
-    // Check if the user has permission
-    if (tournament.createdBy !== currentUser.id) {
-      setIsLoading(false);
-      throw new Error("You don't have permission to update this tournament");
-    }
-    
-    const newTeam: Team = {
-      id: Date.now().toString(),
-      name: team.name || "New Team",
-      players: team.players || [],
-      tournamentId,
-      ...team
-    };
-    
-    const updatedTournament = { 
-      ...tournament, 
-      teams: [...tournament.teams, newTeam] 
-    };
-    
-    const updatedTournaments = [...MOCK_TOURNAMENTS];
-    updatedTournaments[tournamentIndex] = updatedTournament;
-    saveTournaments(updatedTournaments);
-    
-    setTournaments(prev => prev.map(t => 
-      t.id === tournamentId ? updatedTournament : t
-    ));
-    
-    if (currentTournament?.id === tournamentId) {
-      setCurrentTournament(updatedTournament);
-    }
-    
-    setIsLoading(false);
-    toast({
-      title: "Success",
-      description: "Team added successfully",
-    });
-    
-    return newTeam;
   };
 
-  // Update a team
-  const updateTeam = async (tournamentId: string, teamId: string, teamUpdate: Partial<Team>): Promise<Team> => {
-    if (!currentUser) throw new Error("You must be logged in to update a team");
-    
-    setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    const tournamentIndex = MOCK_TOURNAMENTS.findIndex(t => t.id === tournamentId);
-    if (tournamentIndex === -1) {
-      setIsLoading(false);
-      throw new Error("Tournament not found");
-    }
-    
-    const tournament = MOCK_TOURNAMENTS[tournamentIndex];
-    
-    // Check if the user has permission
-    if (tournament.createdBy !== currentUser.id) {
-      setIsLoading(false);
-      throw new Error("You don't have permission to update this tournament");
-    }
-    
-    const teamIndex = tournament.teams.findIndex(t => t.id === teamId);
-    if (teamIndex === -1) {
-      setIsLoading(false);
-      throw new Error("Team not found");
-    }
-    
-    const updatedTeam = { 
-      ...tournament.teams[teamIndex], 
-      ...teamUpdate 
-    };
-    
-    const updatedTeams = [...tournament.teams];
-    updatedTeams[teamIndex] = updatedTeam;
-    
-    const updatedTournament = { 
-      ...tournament, 
-      teams: updatedTeams 
-    };
-    
-    const updatedTournaments = [...MOCK_TOURNAMENTS];
-    updatedTournaments[tournamentIndex] = updatedTournament;
-    saveTournaments(updatedTournaments);
-    
-    setTournaments(prev => prev.map(t => 
-      t.id === tournamentId ? updatedTournament : t
-    ));
-    
-    if (currentTournament?.id === tournamentId) {
-      setCurrentTournament(updatedTournament);
-    }
-    
-    setIsLoading(false);
-    toast({
-      title: "Success",
-      description: "Team updated successfully",
-    });
-    
-    return updatedTeam;
-  };
-
-  // Delete a team
-  const deleteTeam = async (tournamentId: string, teamId: string): Promise<void> => {
-    if (!currentUser) throw new Error("You must be logged in to delete a team");
-    
-    setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    const tournamentIndex = MOCK_TOURNAMENTS.findIndex(t => t.id === tournamentId);
-    if (tournamentIndex === -1) {
-      setIsLoading(false);
-      throw new Error("Tournament not found");
-    }
-    
-    const tournament = MOCK_TOURNAMENTS[tournamentIndex];
-    
-    // Check if the user has permission
-    if (tournament.createdBy !== currentUser.id) {
-      setIsLoading(false);
-      throw new Error("You don't have permission to update this tournament");
-    }
-    
-    const updatedTeams = tournament.teams.filter(t => t.id !== teamId);
-    
-    // Also remove matches involving this team
-    const updatedMatches = tournament.matches.filter(
-      m => m.team1Id !== teamId && m.team2Id !== teamId
-    );
-    
-    const updatedTournament = { 
-      ...tournament, 
-      teams: updatedTeams,
-      matches: updatedMatches
-    };
-    
-    const updatedTournaments = [...MOCK_TOURNAMENTS];
-    updatedTournaments[tournamentIndex] = updatedTournament;
-    saveTournaments(updatedTournaments);
-    
-    setTournaments(prev => prev.map(t => 
-      t.id === tournamentId ? updatedTournament : t
-    ));
-    
-    if (currentTournament?.id === tournamentId) {
-      setCurrentTournament(updatedTournament);
-    }
-    
-    setIsLoading(false);
-    toast({
-      title: "Success",
-      description: "Team deleted successfully",
-    });
-  };
-
-  // Create a new match
-  const createMatch = async (tournamentId: string, match: Partial<Match>): Promise<Match> => {
-    if (!currentUser) throw new Error("You must be logged in to create a match");
-    
-    setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    const tournamentIndex = MOCK_TOURNAMENTS.findIndex(t => t.id === tournamentId);
-    if (tournamentIndex === -1) {
-      setIsLoading(false);
-      throw new Error("Tournament not found");
-    }
-    
-    const tournament = MOCK_TOURNAMENTS[tournamentIndex];
-    
-    // Check if the user has permission
-    if (tournament.createdBy !== currentUser.id) {
-      setIsLoading(false);
-      throw new Error("You don't have permission to update this tournament");
-    }
-    
-    const newMatch: Match = {
-      id: Date.now().toString(),
-      tournamentId,
-      team1Id: match.team1Id || "",
-      team2Id: match.team2Id || "",
-      status: MatchStatus.UPCOMING,
-      ...match
-    };
-    
-    const updatedTournament = { 
-      ...tournament, 
-      matches: [...tournament.matches, newMatch] 
-    };
-    
-    const updatedTournaments = [...MOCK_TOURNAMENTS];
-    updatedTournaments[tournamentIndex] = updatedTournament;
-    saveTournaments(updatedTournaments);
-    
-    setTournaments(prev => prev.map(t => 
-      t.id === tournamentId ? updatedTournament : t
-    ));
-    
-    if (currentTournament?.id === tournamentId) {
-      setCurrentTournament(updatedTournament);
-    }
-    
-    setIsLoading(false);
-    toast({
-      title: "Success",
-      description: "Match created successfully",
-    });
-    
-    return newMatch;
-  };
-
-  // Update a match
-  const updateMatch = async (tournamentId: string, matchId: string, matchUpdate: Partial<Match>): Promise<Match> => {
-    if (!currentUser) throw new Error("You must be logged in to update a match");
-    
-    setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    const tournamentIndex = MOCK_TOURNAMENTS.findIndex(t => t.id === tournamentId);
-    if (tournamentIndex === -1) {
-      setIsLoading(false);
-      throw new Error("Tournament not found");
-    }
-    
-    const tournament = MOCK_TOURNAMENTS[tournamentIndex];
-    
-    // Check if the user has permission
-    if (tournament.createdBy !== currentUser.id) {
-      setIsLoading(false);
-      throw new Error("You don't have permission to update this tournament");
-    }
-    
-    const matchIndex = tournament.matches.findIndex(m => m.id === matchId);
-    if (matchIndex === -1) {
-      setIsLoading(false);
-      throw new Error("Match not found");
-    }
-    
-    const updatedMatch = { 
-      ...tournament.matches[matchIndex], 
-      ...matchUpdate 
-    };
-    
-    const updatedMatches = [...tournament.matches];
-    updatedMatches[matchIndex] = updatedMatch;
-    
-    const updatedTournament = { 
-      ...tournament, 
-      matches: updatedMatches 
-    };
-    
-    const updatedTournaments = [...MOCK_TOURNAMENTS];
-    updatedTournaments[tournamentIndex] = updatedTournament;
-    saveTournaments(updatedTournaments);
-    
-    setTournaments(prev => prev.map(t => 
-      t.id === tournamentId ? updatedTournament : t
-    ));
-    
-    if (currentTournament?.id === tournamentId) {
-      setCurrentTournament(updatedTournament);
-    }
-    
-    setIsLoading(false);
-    toast({
-      title: "Success",
-      description: "Match updated successfully",
-    });
-    
-    return updatedMatch;
-  };
-
-  // Generate random matches for a tournament
-  const generateRandomMatches = async (tournamentId: string): Promise<Match[]> => {
-    if (!currentUser) throw new Error("You must be logged in to generate matches");
-    
-    setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    const tournamentIndex = MOCK_TOURNAMENTS.findIndex(t => t.id === tournamentId);
-    if (tournamentIndex === -1) {
-      setIsLoading(false);
-      throw new Error("Tournament not found");
-    }
-    
-    const tournament = MOCK_TOURNAMENTS[tournamentIndex];
-    
-    // Check if the user has permission
-    if (tournament.createdBy !== currentUser.id) {
-      setIsLoading(false);
-      throw new Error("You don't have permission to update this tournament");
-    }
-    
-    const { teams, format } = tournament;
-    if (teams.length < 2) {
-      setIsLoading(false);
-      throw new Error("At least 2 teams are required to generate matches");
-    }
-    
-    let newMatches: Match[] = [];
-    
-    // Different match generation based on format
-    if (format === TournamentFormat.LEAGUE) {
-      // League format - each team plays against all other teams
-      for (let i = 0; i < teams.length; i++) {
-        for (let j = i + 1; j < teams.length; j++) {
-          const match: Match = {
-            id: `${Date.now()}-${i}-${j}`,
-            tournamentId,
-            team1Id: teams[i].id,
-            team2Id: teams[j].id,
-            status: MatchStatus.UPCOMING,
-            date: new Date(Date.now() + (i * j * 24 * 60 * 60 * 1000)).toISOString().split('T')[0], // Simple date generation
-          };
-          newMatches.push(match);
+  const createTeam = async (teamData: Partial<Team>) => {
+    try {
+      setIsLoading(true);
+      
+      // Map to DB schema
+      const dbTeam = {
+        tournament_id: teamData.tournamentId,
+        name: teamData.name,
+        short_name: teamData.shortName,
+        logo_url: teamData.logo,
+      };
+      
+      const { data, error } = await supabase
+        .from('teams')
+        .insert(dbTeam)
+        .select()
+        .single();
+      
+      if (error) {
+        throw error;
+      }
+      
+      // Add players if provided
+      if (teamData.players && teamData.players.length > 0) {
+        const playersToInsert = teamData.players.map(player => ({
+          team_id: data.id,
+          name: player.name,
+          role: player.role,
+          batting_style: player.batting,
+          bowling_style: player.bowling,
+          image_url: player.image
+        }));
+        
+        const { error: playersError } = await supabase
+          .from('players')
+          .insert(playersToInsert);
+        
+        if (playersError) {
+          console.error('Error adding players:', playersError);
+          // Continue with team creation even if player addition fails
         }
       }
-    } else if (format === TournamentFormat.KNOCKOUT) {
-      // Knockout format - generate first round matches
-      for (let i = 0; i < Math.floor(teams.length / 2); i++) {
-        const match: Match = {
-          id: `${Date.now()}-${i}`,
-          tournamentId,
-          team1Id: teams[i * 2].id,
-          team2Id: teams[i * 2 + 1]?.id || "", // Handle odd number of teams
-          status: MatchStatus.UPCOMING,
-          date: new Date(Date.now() + (i * 24 * 60 * 60 * 1000)).toISOString().split('T')[0],
+      
+      // Transform the returned data
+      const newTeam: Team = {
+        id: data.id,
+        name: data.name,
+        shortName: data.short_name || '',
+        logo: data.logo_url || '',
+        tournamentId: data.tournament_id,
+        players: teamData.players || []
+      };
+      
+      // Update local state
+      if (currentTournament) {
+        const updatedTournament = {
+          ...currentTournament,
+          teams: [...(currentTournament.teams || []), newTeam]
         };
-        newMatches.push(match);
+        setCurrentTournament(updatedTournament);
       }
-    } else if (format === TournamentFormat.GROUP_KNOCKOUT) {
-      // For simplicity, just create two groups and then matches within groups
-      const midpoint = Math.ceil(teams.length / 2);
-      const group1 = teams.slice(0, midpoint);
-      const group2 = teams.slice(midpoint);
       
-      // Group 1 matches
-      for (let i = 0; i < group1.length; i++) {
-        for (let j = i + 1; j < group1.length; j++) {
-          const match: Match = {
-            id: `${Date.now()}-g1-${i}-${j}`,
-            tournamentId,
-            team1Id: group1[i].id,
-            team2Id: group1[j].id,
-            status: MatchStatus.UPCOMING,
-            date: new Date(Date.now() + (i * j * 24 * 60 * 60 * 1000)).toISOString().split('T')[0],
-          };
-          newMatches.push(match);
+      toast.success("Team created successfully!");
+      return newTeam;
+    } catch (error: any) {
+      toast.error(`Error creating team: ${error.message}`);
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const updateTeam = async (id: string, teamData: Partial<Team>) => {
+    try {
+      setIsLoading(true);
+      
+      // Map to DB schema
+      const dbTeam = {
+        name: teamData.name,
+        short_name: teamData.shortName,
+        logo_url: teamData.logo
+      };
+      
+      const { data, error } = await supabase
+        .from('teams')
+        .update(dbTeam)
+        .eq('id', id)
+        .select()
+        .single();
+      
+      if (error) {
+        throw error;
+      }
+      
+      // Handle players update if provided
+      if (teamData.players) {
+        // Delete existing players
+        await supabase
+          .from('players')
+          .delete()
+          .eq('team_id', id);
+        
+        // Insert new players
+        if (teamData.players.length > 0) {
+          const playersToInsert = teamData.players.map(player => ({
+            team_id: id,
+            name: player.name,
+            role: player.role,
+            batting_style: player.batting,
+            bowling_style: player.bowling,
+            image_url: player.image
+          }));
+          
+          const { error: playersError } = await supabase
+            .from('players')
+            .insert(playersToInsert);
+          
+          if (playersError) {
+            console.error('Error updating players:', playersError);
+          }
         }
       }
       
-      // Group 2 matches
-      for (let i = 0; i < group2.length; i++) {
-        for (let j = i + 1; j < group2.length; j++) {
-          const match: Match = {
-            id: `${Date.now()}-g2-${i}-${j}`,
-            tournamentId,
-            team1Id: group2[i].id,
-            team2Id: group2[j].id,
-            status: MatchStatus.UPCOMING,
-            date: new Date(Date.now() + (i * j * 24 * 60 * 60 * 1000)).toISOString().split('T')[0],
-          };
-          newMatches.push(match);
+      // Transform the returned data
+      const updatedTeam: Team = {
+        id: data.id,
+        name: data.name,
+        shortName: data.short_name || '',
+        logo: data.logo_url || '',
+        tournamentId: data.tournament_id,
+        players: teamData.players || []
+      };
+      
+      // Update local state
+      if (currentTournament) {
+        const updatedTournament = {
+          ...currentTournament,
+          teams: currentTournament.teams?.map(team => 
+            team.id === id ? updatedTeam : team
+          ) || []
+        };
+        setCurrentTournament(updatedTournament);
+      }
+      
+      toast.success("Team updated successfully!");
+      return updatedTeam;
+    } catch (error: any) {
+      toast.error(`Error updating team: ${error.message}`);
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const deleteTeam = async (id: string) => {
+    try {
+      setIsLoading(true);
+      
+      const { error } = await supabase
+        .from('teams')
+        .delete()
+        .eq('id', id);
+      
+      if (error) {
+        throw error;
+      }
+      
+      // Update local state
+      if (currentTournament) {
+        const updatedTournament = {
+          ...currentTournament,
+          teams: currentTournament.teams?.filter(team => team.id !== id) || []
+        };
+        setCurrentTournament(updatedTournament);
+      }
+      
+      toast.success("Team deleted successfully!");
+      return true;
+    } catch (error: any) {
+      toast.error(`Error deleting team: ${error.message}`);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const createMatch = async (matchData: Partial<Match>) => {
+    try {
+      setIsLoading(true);
+      
+      // Map to DB schema
+      const dbMatch = {
+        tournament_id: matchData.tournamentId,
+        team1_id: matchData.team1Id,
+        team2_id: matchData.team2Id,
+        venue: matchData.venue,
+        match_date: matchData.date,
+        match_time: matchData.time,
+        status: matchData.status
+      };
+      
+      const { data, error } = await supabase
+        .from('matches')
+        .insert(dbMatch)
+        .select()
+        .single();
+      
+      if (error) {
+        throw error;
+      }
+      
+      // Transform the returned data
+      const newMatch: Match = {
+        id: data.id,
+        tournamentId: data.tournament_id,
+        team1Id: data.team1_id,
+        team2Id: data.team2_id,
+        venue: data.venue || '',
+        date: data.match_date || '',
+        time: data.match_time || '',
+        status: data.status
+      };
+      
+      // Update local state
+      if (currentTournament) {
+        const updatedTournament = {
+          ...currentTournament,
+          matches: [...(currentTournament.matches || []), newMatch]
+        };
+        setCurrentTournament(updatedTournament);
+      }
+      
+      toast.success("Match created successfully!");
+      return newMatch;
+    } catch (error: any) {
+      toast.error(`Error creating match: ${error.message}`);
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const updateMatch = async (id: string, matchData: Partial<Match>) => {
+    try {
+      setIsLoading(true);
+      
+      // Prepare innings data if it exists
+      let inning1Update = null;
+      let inning2Update = null;
+      
+      if (matchData.inning1) {
+        inning1Update = {
+          match_id: id,
+          team_id: matchData.inning1.teamId,
+          is_first_innings: true,
+          runs: matchData.inning1.runs,
+          wickets: matchData.inning1.wickets,
+          overs: matchData.inning1.overs
+        };
+      }
+      
+      if (matchData.inning2) {
+        inning2Update = {
+          match_id: id,
+          team_id: matchData.inning2.teamId,
+          is_first_innings: false,
+          runs: matchData.inning2.runs,
+          wickets: matchData.inning2.wickets,
+          overs: matchData.inning2.overs
+        };
+      }
+      
+      // Map to DB schema
+      const dbMatch: any = {
+        venue: matchData.venue,
+        match_date: matchData.date,
+        match_time: matchData.time,
+        status: matchData.status
+      };
+      
+      // Add winner info if available
+      if (matchData.winner) {
+        dbMatch.winner_id = matchData.winner;
+      }
+      
+      if (matchData.result) {
+        dbMatch.win_margin = matchData.result.winMargin;
+        dbMatch.win_margin_type = matchData.result.winMarginType;
+      }
+      
+      // Update match
+      const { data, error } = await supabase
+        .from('matches')
+        .update(dbMatch)
+        .eq('id', id)
+        .select()
+        .single();
+      
+      if (error) {
+        throw error;
+      }
+      
+      // Update or create innings if provided
+      if (inning1Update) {
+        // Check if innings already exists
+        const { data: existingInnings } = await supabase
+          .from('innings')
+          .select()
+          .eq('match_id', id)
+          .eq('is_first_innings', true)
+          .maybeSingle();
+        
+        if (existingInnings) {
+          // Update existing innings
+          await supabase
+            .from('innings')
+            .update({
+              runs: inning1Update.runs,
+              wickets: inning1Update.wickets,
+              overs: inning1Update.overs
+            })
+            .eq('id', existingInnings.id);
+        } else {
+          // Create new innings
+          await supabase.from('innings').insert(inning1Update);
         }
       }
+      
+      if (inning2Update) {
+        // Check if innings already exists
+        const { data: existingInnings } = await supabase
+          .from('innings')
+          .select()
+          .eq('match_id', id)
+          .eq('is_first_innings', false)
+          .maybeSingle();
+        
+        if (existingInnings) {
+          // Update existing innings
+          await supabase
+            .from('innings')
+            .update({
+              runs: inning2Update.runs,
+              wickets: inning2Update.wickets,
+              overs: inning2Update.overs
+            })
+            .eq('id', existingInnings.id);
+        } else {
+          // Create new innings
+          await supabase.from('innings').insert(inning2Update);
+        }
+      }
+      
+      // Get updated match with innings
+      const { data: updatedMatchData } = await supabase
+        .from('matches')
+        .select(`
+          *,
+          innings:innings(*)
+        `)
+        .eq('id', id)
+        .single();
+      
+      // Transform the returned data
+      const updatedMatch: Match = {
+        id: updatedMatchData.id,
+        tournamentId: updatedMatchData.tournament_id,
+        team1Id: updatedMatchData.team1_id,
+        team2Id: updatedMatchData.team2_id,
+        venue: updatedMatchData.venue || '',
+        date: updatedMatchData.match_date || '',
+        time: updatedMatchData.match_time || '',
+        status: updatedMatchData.status,
+        winner: updatedMatchData.winner_id || '',
+        result: updatedMatchData.winner_id ? {
+          winnerId: updatedMatchData.winner_id,
+          winMargin: updatedMatchData.win_margin,
+          winMarginType: updatedMatchData.win_margin_type,
+          summary: matchData.result?.summary
+        } : undefined
+      };
+      
+      // Add innings data if available
+      if (updatedMatchData.innings && updatedMatchData.innings.length > 0) {
+        for (const inning of updatedMatchData.innings) {
+          if (inning.is_first_innings) {
+            updatedMatch.inning1 = {
+              teamId: inning.team_id,
+              runs: inning.runs,
+              wickets: inning.wickets,
+              overs: inning.overs
+            };
+          } else {
+            updatedMatch.inning2 = {
+              teamId: inning.team_id,
+              runs: inning.runs,
+              wickets: inning.wickets,
+              overs: inning.overs
+            };
+          }
+        }
+      }
+      
+      // Update local state
+      if (currentTournament) {
+        const updatedTournament = {
+          ...currentTournament,
+          matches: currentTournament.matches?.map(match => 
+            match.id === id ? updatedMatch : match
+          ) || []
+        };
+        setCurrentTournament(updatedTournament);
+      }
+      
+      toast.success("Match updated successfully!");
+      return updatedMatch;
+    } catch (error: any) {
+      toast.error(`Error updating match: ${error.message}`);
+      return null;
+    } finally {
+      setIsLoading(false);
     }
-    
-    // Add new matches to tournament
-    const updatedTournament = { 
-      ...tournament, 
-      matches: [...tournament.matches, ...newMatches] 
-    };
-    
-    const updatedTournaments = [...MOCK_TOURNAMENTS];
-    updatedTournaments[tournamentIndex] = updatedTournament;
-    saveTournaments(updatedTournaments);
-    
-    setTournaments(prev => prev.map(t => 
-      t.id === tournamentId ? updatedTournament : t
-    ));
-    
-    if (currentTournament?.id === tournamentId) {
-      setCurrentTournament(updatedTournament);
+  };
+
+  const deleteMatch = async (id: string) => {
+    try {
+      setIsLoading(true);
+      
+      const { error } = await supabase
+        .from('matches')
+        .delete()
+        .eq('id', id);
+      
+      if (error) {
+        throw error;
+      }
+      
+      // Update local state
+      if (currentTournament) {
+        const updatedTournament = {
+          ...currentTournament,
+          matches: currentTournament.matches?.filter(match => match.id !== id) || []
+        };
+        setCurrentTournament(updatedTournament);
+      }
+      
+      toast.success("Match deleted successfully!");
+      return true;
+    } catch (error: any) {
+      toast.error(`Error deleting match: ${error.message}`);
+      return false;
+    } finally {
+      setIsLoading(false);
     }
-    
-    setIsLoading(false);
-    toast({
-      title: "Success",
-      description: `${newMatches.length} matches generated successfully`,
-    });
-    
-    return newMatches;
   };
 
   return (
-    <TournamentContext.Provider value={{
-      tournaments,
-      currentTournament,
-      isLoading,
-      createTournament,
-      updateTournament,
-      deleteTournament,
-      getTournamentByCode,
-      setCurrentTournament,
-      addTeam,
-      updateTeam,
-      deleteTeam,
-      createMatch,
-      updateMatch,
-      generateRandomMatches
-    }}>
+    <TournamentContext.Provider
+      value={{
+        currentTournament,
+        tournaments,
+        isLoading,
+        fetchTournaments,
+        createTournament,
+        updateTournament,
+        deleteTournament,
+        getTournamentByCode,
+        getTournament,
+        createTeam,
+        updateTeam,
+        deleteTeam,
+        createMatch,
+        updateMatch,
+        deleteMatch
+      }}
+    >
       {children}
     </TournamentContext.Provider>
   );
 };
 
-export const useTournament = () => {
+export const useTournament = (): TournamentContextProps => {
   const context = useContext(TournamentContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error("useTournament must be used within a TournamentProvider");
   }
   return context;

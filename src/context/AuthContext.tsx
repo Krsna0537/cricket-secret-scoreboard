@@ -1,90 +1,193 @@
 
-import React, { createContext, useState, useContext, useEffect } from "react";
-import { User, UserRole } from "@/types";
+import React, { createContext, useContext, useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { Session, User, AuthError } from "@supabase/supabase-js";
+import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
+import { UserRole } from "@/types";
+import { DbProfile } from "@/types/supabase-types";
 
-interface AuthContextType {
-  currentUser: User | null;
+interface AuthContextProps {
+  session: Session | null;
+  user: User | null;
+  profile: DbProfile | null;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
-  isAdmin: boolean;
+  signIn: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string, name: string) => Promise<void>;
+  signOut: () => Promise<void>;
+  isAdmin: () => boolean;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-// Mock user data - in a real app, this would come from an API
-const MOCK_USERS = [
-  {
-    id: "1",
-    name: "Admin User",
-    email: "admin@cricket.com",
-    password: "password123", // In a real app, passwords would be hashed
-    role: UserRole.ADMIN
-  }
-];
+const AuthContext = createContext<AuthContextProps | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<DbProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const navigate = useNavigate();
 
-  // Check for saved user on mount
   useEffect(() => {
-    const savedUser = localStorage.getItem("cricket_user");
-    if (savedUser) {
-      try {
-        const parsed = JSON.parse(savedUser);
-        setCurrentUser(parsed);
-      } catch (e) {
-        console.error("Failed to parse saved user");
+    // Set up authentication listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (_event, currentSession) => {
+        setSession(currentSession);
+        setUser(currentSession?.user || null);
+        setIsLoading(false);
+
+        if (currentSession?.user) {
+          await fetchProfile(currentSession.user.id);
+        } else {
+          setProfile(null);
+        }
       }
-    }
-    setIsLoading(false);
+    );
+
+    // Initial session check
+    const initializeAuth = async () => {
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      setSession(currentSession);
+      setUser(currentSession?.user || null);
+
+      if (currentSession?.user) {
+        await fetchProfile(currentSession.user.id);
+      }
+      
+      setIsLoading(false);
+    };
+
+    initializeAuth();
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
-  const login = async (email: string, password: string) => {
-    // In a real app, this would be an API call
-    setIsLoading(true);
-    
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const user = MOCK_USERS.find(u => u.email === email);
-    
-    if (!user || user.password !== password) {
-      setIsLoading(false);
-      throw new Error("Invalid credentials");
+  const fetchProfile = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      setProfile(data);
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+      setProfile(null);
     }
-    
-    // Remove password before storing user
-    const { password: _, ...userWithoutPassword } = user;
-    setCurrentUser(userWithoutPassword);
-    localStorage.setItem("cricket_user", JSON.stringify(userWithoutPassword));
-    setIsLoading(false);
   };
 
-  const logout = () => {
-    setCurrentUser(null);
-    localStorage.removeItem("cricket_user");
+  const signIn = async (email: string, password: string) => {
+    try {
+      setIsLoading(true);
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      setSession(data.session);
+      setUser(data.user);
+      
+      if (data.user) {
+        await fetchProfile(data.user.id);
+      }
+
+      navigate("/dashboard");
+      toast.success("Signed in successfully!");
+    } catch (error) {
+      const authError = error as AuthError;
+      toast.error(`Sign in failed: ${authError.message}`);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const isAdmin = currentUser?.role === UserRole.ADMIN;
+  const signUp = async (email: string, password: string, name: string) => {
+    try {
+      setIsLoading(true);
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            name
+          }
+        }
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (data.user) {
+        toast.success("Sign up successful! Check your email to confirm your account.");
+      }
+
+      navigate("/login");
+    } catch (error) {
+      const authError = error as AuthError;
+      toast.error(`Sign up failed: ${authError.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const signOut = async () => {
+    try {
+      setIsLoading(true);
+      const { error } = await supabase.auth.signOut();
+
+      if (error) {
+        throw error;
+      }
+
+      setSession(null);
+      setUser(null);
+      setProfile(null);
+      navigate("/");
+      toast.success("Signed out successfully!");
+    } catch (error) {
+      const authError = error as AuthError;
+      toast.error(`Sign out failed: ${authError.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const isAdmin = (): boolean => {
+    return profile?.role === 'admin';
+  };
 
   return (
-    <AuthContext.Provider value={{
-      currentUser,
-      isLoading,
-      login,
-      logout,
-      isAdmin
-    }}>
+    <AuthContext.Provider
+      value={{
+        session,
+        user,
+        profile,
+        isLoading,
+        signIn,
+        signUp,
+        signOut,
+        isAdmin
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
 };
 
-export const useAuth = () => {
+export const useAuth = (): AuthContextProps => {
   const context = useContext(AuthContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
