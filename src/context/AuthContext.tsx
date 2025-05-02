@@ -138,8 +138,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (data.user) {
         toast.success("Sign up successful! You can now login with your credentials.");
       }
-
-      return data;
+      
+      // We're not returning data here, to match the Promise<void> return type in interface
+      return;
     } catch (error) {
       const authError = error as AuthError;
       toast.error(`Sign up failed: ${authError.message}`);
