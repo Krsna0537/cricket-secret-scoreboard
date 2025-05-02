@@ -5,11 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Link, useNavigate } from "react-router-dom";
 
 export const Header = () => {
-  const { currentUser, logout, isAdmin } = useAuth();
+  const { user, signOut, isAdmin } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = () => {
-    logout();
+    signOut();
     navigate("/");
   };
 
@@ -43,12 +43,12 @@ export const Header = () => {
           <Link to="/" className="text-gray-600 hover:text-cricket-700">
             Home
           </Link>
-          {currentUser ? (
+          {user ? (
             <>
               <Link to="/dashboard" className="text-gray-600 hover:text-cricket-700">
                 Dashboard
               </Link>
-              {isAdmin && (
+              {isAdmin() && (
                 <Link to="/tournaments" className="text-gray-600 hover:text-cricket-700">
                   Tournaments
                 </Link>
@@ -62,10 +62,10 @@ export const Header = () => {
         </nav>
 
         <div className="flex items-center gap-4">
-          {currentUser ? (
+          {user ? (
             <div className="flex items-center gap-4">
               <span className="hidden md:inline text-sm text-gray-600">
-                {currentUser.name}
+                {user.email}
               </span>
               <Button
                 variant="outline"

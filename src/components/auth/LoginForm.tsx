@@ -11,7 +11,7 @@ export const LoginForm = () => {
   const [email, setEmail] = useState("admin@cricket.com");
   const [password, setPassword] = useState("password123");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const { login } = useAuth();
+  const { signIn } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -20,7 +20,7 @@ export const LoginForm = () => {
     setIsLoggingIn(true);
 
     try {
-      await login(email, password);
+      await signIn(email, password);
       toast({
         title: "Login successful",
         description: "Welcome to Cricket Tournament Manager",

@@ -12,6 +12,7 @@ import { MatchForm } from "@/components/match/MatchForm";
 import { ShareTournament } from "@/components/tournament/ShareTournament";
 import { Match, MatchStatus, Team } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
@@ -34,19 +35,18 @@ import { PointsTable } from "@/components/tournament/PointsTable";
 const TournamentManagement = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { currentUser } = useAuth();
+  const { user } = useAuth();
   const {
     tournaments,
     currentTournament,
     setCurrentTournament,
     isLoading,
     updateTournament,
-    addTeam,
+    createTeam,
     updateTeam,
     deleteTeam,
     createMatch,
     updateMatch,
-    generateRandomMatches,
   } = useTournament();
 
   const [teamDialogOpen, setTeamDialogOpen] = useState(false);
@@ -70,21 +70,21 @@ const TournamentManagement = () => {
 
   // Redirect if not logged in
   useEffect(() => {
-    if (!currentUser) {
+    if (!user) {
       navigate("/login");
     }
-  }, [currentUser, navigate]);
+  }, [user, navigate]);
 
   // Redirect if tournament doesn't exist or not owned by current user
   useEffect(() => {
     if (
       !isLoading &&
       currentTournament &&
-      currentTournament.createdBy !== currentUser?.id
+      currentTournament.createdBy !== user?.id
     ) {
       navigate("/dashboard");
     }
-  }, [currentTournament, currentUser, isLoading, navigate]);
+  }, [currentTournament, user, isLoading, navigate]);
 
   const handleUpdateTournament = async (data: Partial<typeof currentTournament>) => {
     if (currentTournament) {
@@ -94,7 +94,10 @@ const TournamentManagement = () => {
 
   const handleAddTeam = async (data: Partial<Team>) => {
     if (currentTournament) {
-      await addTeam(currentTournament.id, data);
+      await createTeam({
+        ...data,
+        tournamentId: currentTournament.id
+      });
       setTeamDialogOpen(false);
       setEditingTeam(null);
     }
@@ -107,7 +110,7 @@ const TournamentManagement = () => {
 
   const handleUpdateTeam = async (data: Partial<Team>) => {
     if (currentTournament && editingTeam) {
-      await updateTeam(currentTournament.id, editingTeam.id, data);
+      await updateTeam(editingTeam.id, data);
       setTeamDialogOpen(false);
       setEditingTeam(null);
     }
@@ -116,14 +119,17 @@ const TournamentManagement = () => {
   const handleDeleteTeam = async (teamId: string) => {
     if (currentTournament) {
       if (window.confirm("Are you sure you want to delete this team? All matches involving this team will also be deleted.")) {
-        await deleteTeam(currentTournament.id, teamId);
+        await deleteTeam(teamId);
       }
     }
   };
 
   const handleAddMatch = async (data: Partial<Match>) => {
     if (currentTournament) {
-      await createMatch(currentTournament.id, data);
+      await createMatch({
+        ...data,
+        tournamentId: currentTournament.id
+      });
       setMatchDialogOpen(false);
       setEditingMatch(null);
     }
@@ -136,7 +142,7 @@ const TournamentManagement = () => {
 
   const handleUpdateMatch = async (data: Partial<Match>) => {
     if (currentTournament && editingMatch) {
-      await updateMatch(currentTournament.id, editingMatch.id, data);
+      await updateMatch(editingMatch.id, data);
       setMatchDialogOpen(false);
       setEditingMatch(null);
     }
@@ -150,7 +156,32 @@ const TournamentManagement = () => {
       }
 
       if (window.confirm("This will generate matches based on the tournament format. Continue?")) {
-        await generateRandomMatches(currentTournament.id);
+        // Since we don't have this function in our updated context, we'll implement it here temporarily
+        const teams = currentTournament.teams;
+        const matches = [];
+        
+        // Simple round-robin format for demo
+        for (let i = 0; i < teams.length; i++) {
+          for (let j = i + 1; j < teams.length; j++) {
+            // Create a match between team i and team j
+            const matchData = {
+              tournamentId: currentTournament.id,
+              team1Id: teams[i].id,
+              team2Id: teams[j].id,
+              status: MatchStatus.UPCOMING,
+              venue: "Main Stadium",
+              date: new Date().toISOString().split('T')[0],
+              time: "14:00"
+            };
+            
+            const newMatch = await createMatch(matchData);
+            if (newMatch) {
+              matches.push(newMatch);
+            }
+          }
+        }
+        
+        toast.success(`Generated ${matches.length} matches!`);
       }
     }
   };
@@ -162,7 +193,7 @@ const TournamentManagement = () => {
 
   const handleUpdateScore = async (matchId: string, matchUpdate: Partial<Match>) => {
     if (currentTournament) {
-      await updateMatch(currentTournament.id, matchId, matchUpdate);
+      await updateMatch(matchId, matchUpdate);
       setScoringDialogOpen(false);
       setScoringMatch(null);
     }

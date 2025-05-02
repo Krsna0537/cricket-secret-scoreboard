@@ -16,6 +16,10 @@ interface AuthContextProps {
   signUp: (email: string, password: string, name: string) => Promise<void>;
   signOut: () => Promise<void>;
   isAdmin: () => boolean;
+  // Alias properties to match components that use them
+  currentUser: User | null;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextProps | undefined>(undefined);
@@ -177,7 +181,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signIn,
         signUp,
         signOut,
-        isAdmin
+        isAdmin,
+        // Alias properties to match components that use them
+        currentUser: user,
+        login: signIn,
+        logout: signOut
       }}
     >
       {children}

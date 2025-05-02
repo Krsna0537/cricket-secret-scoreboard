@@ -29,7 +29,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tournament } from "@/types";
 
 const Dashboard = () => {
-  const { currentUser } = useAuth();
+  const { user } = useAuth();
   const { tournaments, isLoading, createTournament, deleteTournament } = useTournament();
   const navigate = useNavigate();
   
@@ -38,10 +38,10 @@ const Dashboard = () => {
 
   // Redirect if not logged in
   useEffect(() => {
-    if (!currentUser) {
+    if (!user) {
       navigate("/login");
     }
-  }, [currentUser, navigate]);
+  }, [user, navigate]);
 
   const handleCreateTournament = async (data: Partial<Tournament>) => {
     await createTournament(data);
@@ -59,7 +59,7 @@ const Dashboard = () => {
     navigate(`/tournaments/manage/${tournament.id}`);
   };
 
-  if (!currentUser) {
+  if (!user) {
     return null; // Will redirect through useEffect
   }
 

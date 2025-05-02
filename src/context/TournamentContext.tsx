@@ -3,8 +3,9 @@ import React, { createContext, useContext, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { Tournament, Team, Match, Player } from "@/types";
-import { DbTournament } from "@/types/supabase-types";
+import { Tournament, Team, Match, Player, TournamentFormat, MatchStatus } from "@/types";
+import { DbTournament, TournamentFormatDb, MatchStatusDb } from "@/types/supabase-types";
+import { useAuth } from "./AuthContext";
 
 interface TournamentContextProps {
   currentTournament: Tournament | null;
@@ -22,6 +23,8 @@ interface TournamentContextProps {
   createMatch: (matchData: Partial<Match>) => Promise<Match | null>;
   updateMatch: (id: string, matchData: Partial<Match>) => Promise<Match | null>;
   deleteMatch: (id: string) => Promise<boolean>;
+  // Adding properties to match component usage
+  setCurrentTournament: (tournament: Tournament) => void;
 }
 
 const TournamentContext = createContext<TournamentContextProps | undefined>(undefined);
@@ -31,6 +34,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const fetchTournaments = async () => {
     try {
@@ -47,7 +51,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const transformedTournaments: Tournament[] = tournamentsData.map((t: DbTournament) => ({
         id: t.id,
         name: t.name,
-        format: t.format as any,
+        format: t.format as TournamentFormat,
         description: t.description || '',
         location: t.location || '',
         logo: t.logo_url || '',
@@ -60,10 +64,9 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }));
       
       setTournaments(transformedTournaments);
-      return transformedTournaments;
+      return;
     } catch (error: any) {
       toast.error(`Error fetching tournaments: ${error.message}`);
-      return [];
     } finally {
       setIsLoading(false);
     }
@@ -73,6 +76,11 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     try {
       setIsLoading(true);
       
+      if (!user) {
+        toast.error("You must be logged in to create a tournament");
+        return null;
+      }
+      
       // Generate a random secret code if not provided
       const secretCode = tournamentData.secretCode || 
         Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -80,13 +88,14 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       // Map to DB schema
       const dbTournament = {
         name: tournamentData.name,
-        format: tournamentData.format,
+        format: tournamentData.format as TournamentFormatDb,
         description: tournamentData.description,
         location: tournamentData.location,
         logo_url: tournamentData.logo,
         start_date: tournamentData.startDate,
         end_date: tournamentData.endDate,
-        secret_code: secretCode
+        secret_code: secretCode,
+        created_by: user.id
       };
       
       const { data, error } = await supabase
@@ -103,7 +112,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const newTournament: Tournament = {
         id: data.id,
         name: data.name,
-        format: data.format,
+        format: data.format as TournamentFormat,
         description: data.description || '',
         location: data.location || '',
         logo: data.logo_url || '',
@@ -135,7 +144,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       // Map to DB schema
       const dbTournament = {
         name: tournamentData.name,
-        format: tournamentData.format,
+        format: tournamentData.format as TournamentFormatDb,
         description: tournamentData.description,
         location: tournamentData.location,
         logo_url: tournamentData.logo,
@@ -158,7 +167,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const updatedTournament: Tournament = {
         id: data.id,
         name: data.name,
-        format: data.format,
+        format: data.format as TournamentFormat,
         description: data.description || '',
         location: data.location || '',
         logo: data.logo_url || '',
@@ -252,7 +261,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const tournament: Tournament = {
         id: data.id,
         name: data.name,
-        format: data.format,
+        format: data.format as TournamentFormat,
         description: data.description || '',
         location: data.location || '',
         logo: data.logo_url || '',
@@ -283,12 +292,12 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           date: match.match_date || '',
           time: match.match_time || '',
           venue: match.venue || '',
-          status: match.status,
+          status: match.status as MatchStatus,
           winner: match.winner_id || '',
           result: match.winner_id ? {
             winnerId: match.winner_id,
             winMargin: match.win_margin,
-            winMarginType: match.win_margin_type
+            winMarginType: (match.win_margin_type as "runs" | "wickets") || "runs"
           } : undefined
         }))
       };
@@ -335,7 +344,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const tournament: Tournament = {
         id: data.id,
         name: data.name,
-        format: data.format,
+        format: data.format as TournamentFormat,
         description: data.description || '',
         location: data.location || '',
         logo: data.logo_url || '',
@@ -366,12 +375,12 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           date: match.match_date || '',
           time: match.match_time || '',
           venue: match.venue || '',
-          status: match.status,
+          status: match.status as MatchStatus,
           winner: match.winner_id || '',
           result: match.winner_id ? {
             winnerId: match.winner_id,
             winMargin: match.win_margin,
-            winMarginType: match.win_margin_type
+            winMarginType: (match.win_margin_type as "runs" | "wickets") || "runs"
           } : undefined
         }))
       };
@@ -585,7 +594,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         venue: matchData.venue,
         match_date: matchData.date,
         match_time: matchData.time,
-        status: matchData.status
+        status: matchData.status as MatchStatusDb
       };
       
       const { data, error } = await supabase
@@ -607,7 +616,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         venue: data.venue || '',
         date: data.match_date || '',
         time: data.match_time || '',
-        status: data.status
+        status: data.status as MatchStatus
       };
       
       // Update local state
@@ -664,7 +673,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         venue: matchData.venue,
         match_date: matchData.date,
         match_time: matchData.time,
-        status: matchData.status
+        status: matchData.status as MatchStatusDb
       };
       
       // Add winner info if available
@@ -759,12 +768,12 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         venue: updatedMatchData.venue || '',
         date: updatedMatchData.match_date || '',
         time: updatedMatchData.match_time || '',
-        status: updatedMatchData.status,
+        status: updatedMatchData.status as MatchStatus,
         winner: updatedMatchData.winner_id || '',
         result: updatedMatchData.winner_id ? {
           winnerId: updatedMatchData.winner_id,
           winMargin: updatedMatchData.win_margin,
-          winMarginType: updatedMatchData.win_margin_type,
+          winMarginType: (updatedMatchData.win_margin_type as "runs" | "wickets") || "runs",
           summary: matchData.result?.summary
         } : undefined
       };
@@ -860,7 +869,9 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         deleteTeam,
         createMatch,
         updateMatch,
-        deleteMatch
+        deleteMatch,
+        // Adding this to match component usage
+        setCurrentTournament
       }}
     >
       {children}

@@ -6,15 +6,15 @@ import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "react-router-dom";
 
 const Login = () => {
-  const { currentUser } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
 
   // Redirect to dashboard if already logged in
   useEffect(() => {
-    if (currentUser) {
+    if (user) {
       navigate("/dashboard");
     }
-  }, [currentUser, navigate]);
+  }, [user, navigate]);
 
   return (
     <MainLayout>
