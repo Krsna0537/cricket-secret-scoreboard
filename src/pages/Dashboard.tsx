@@ -29,7 +29,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tournament } from "@/types";
 
 const Dashboard = () => {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { tournaments, isLoading, createTournament, deleteTournament } = useTournament();
   const navigate = useNavigate();
   
@@ -63,26 +63,30 @@ const Dashboard = () => {
     return null; // Will redirect through useEffect
   }
 
+  const userIsAdmin = isAdmin();
+
   return (
     <MainLayout>
       <div className="max-w-6xl mx-auto">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold">My Dashboard</h1>
-          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-            <DialogTrigger asChild>
-              <Button
-                className="bg-cricket-700 hover:bg-cricket-800"
-              >
-                Create Tournament
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-2xl">
-              <DialogHeader>
-                <DialogTitle>Create Tournament</DialogTitle>
-              </DialogHeader>
-              <TournamentForm onSubmit={handleCreateTournament} isLoading={isLoading} />
-            </DialogContent>
-          </Dialog>
+          {userIsAdmin && (
+            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  className="bg-cricket-700 hover:bg-cricket-800"
+                >
+                  Create Tournament
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle>Create Tournament</DialogTitle>
+                </DialogHeader>
+                <TournamentForm onSubmit={handleCreateTournament} isLoading={isLoading} />
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
 
         <Tabs defaultValue="tournaments">
@@ -118,15 +122,25 @@ const Dashboard = () => {
                 </div>
                 <h3 className="text-xl font-semibold mb-2">No Tournaments Yet</h3>
                 <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-                  Create your first cricket tournament to get started. You can add teams,
-                  schedule matches, and more.
+                  {userIsAdmin 
+                    ? "Create your first cricket tournament to get started. You can add teams, schedule matches, and more."
+                    : "You don't have any tournaments yet. You need to be an admin to create tournaments or you can access tournaments using a code."}
                 </p>
-                <Button
-                  onClick={() => setIsCreateDialogOpen(true)}
-                  className="bg-cricket-700 hover:bg-cricket-800"
-                >
-                  Create Your First Tournament
-                </Button>
+                {userIsAdmin ? (
+                  <Button
+                    onClick={() => setIsCreateDialogOpen(true)}
+                    className="bg-cricket-700 hover:bg-cricket-800"
+                  >
+                    Create Your First Tournament
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={() => navigate("/access")}
+                    className="bg-cricket-700 hover:bg-cricket-800"
+                  >
+                    Access Tournament with Code
+                  </Button>
+                )}
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -136,7 +150,7 @@ const Dashboard = () => {
                     tournament={tournament}
                     onManage={handleManageTournament}
                     onDelete={(id) => setTournamentToDelete(id)}
-                    isAdmin={true}
+                    isAdmin={userIsAdmin}
                   />
                 ))}
               </div>

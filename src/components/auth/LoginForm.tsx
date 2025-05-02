@@ -8,8 +8,8 @@ import { useToast } from "@/components/ui/use-toast";
 import { useNavigate } from "react-router-dom";
 
 export const LoginForm = () => {
-  const [email, setEmail] = useState("admin@cricket.com");
-  const [password, setPassword] = useState("password123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const { signIn } = useAuth();
   const { toast } = useToast();
@@ -56,7 +56,7 @@ export const LoginForm = () => {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="admin@cricket.com"
+              placeholder="you@example.com"
               required
               autoComplete="email"
             />
@@ -74,9 +74,6 @@ export const LoginForm = () => {
               required
               autoComplete="current-password"
             />
-            <p className="text-xs text-muted-foreground mt-1">
-              For demo: use admin@cricket.com / password123
-            </p>
           </div>
         </CardContent>
         <CardFooter>

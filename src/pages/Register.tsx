@@ -1,11 +1,11 @@
 
 import React, { useEffect } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
-import { LoginForm } from "@/components/auth/LoginForm";
+import { RegisterForm } from "@/components/auth/RegisterForm";
 import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "react-router-dom";
 
-const Login = () => {
+const Register = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -19,18 +19,13 @@ const Login = () => {
   return (
     <MainLayout>
       <div className="max-w-3xl mx-auto py-12">
-        <h1 className="text-3xl font-bold text-center mb-8">Sign In</h1>
-        <LoginForm />
+        <h1 className="text-3xl font-bold text-center mb-8">Create an Account</h1>
+        <RegisterForm />
         
         <div className="mt-8 text-center text-sm text-muted-foreground">
-          <p>Don't have an account yet?</p>
-          <a href="/register" className="text-cricket-700 hover:underline">
-            Create an account
-          </a>
-          
-          <p className="mt-4">Not an admin but want to access a tournament?</p>
-          <a href="/access" className="text-cricket-700 hover:underline">
-            Access with a tournament code
+          <p>Already have an account?</p>
+          <a href="/login" className="text-cricket-700 hover:underline">
+            Sign in instead
           </a>
         </div>
       </div>
@@ -38,4 +33,4 @@ const Login = () => {
   );
 };
 
-export default Login;
+export default Register;

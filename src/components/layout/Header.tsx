@@ -76,13 +76,22 @@ export const Header = () => {
               </Button>
             </div>
           ) : (
-            <Button 
-              variant="default" 
-              onClick={() => navigate("/login")}
-              className="bg-cricket-700 hover:bg-cricket-800"
-            >
-              Login
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="outline"
+                onClick={() => navigate("/register")}
+                className="border-cricket-500 text-cricket-800 hover:bg-cricket-50"
+              >
+                Register
+              </Button>
+              <Button 
+                variant="default" 
+                onClick={() => navigate("/login")}
+                className="bg-cricket-700 hover:bg-cricket-800"
+              >
+                Login
+              </Button>
+            </div>
           )}
         </div>
       </div>

@@ -2,7 +2,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Session, User, AuthError } from "@supabase/supabase-js";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "sonner";
 import { UserRole } from "@/types";
 import { DbProfile } from "@/types/supabase-types";
@@ -13,7 +13,7 @@ interface AuthContextProps {
   profile: DbProfile | null;
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, name: string) => Promise<void>;
+  signUp: (email: string, password: string, name: string, role?: string) => Promise<void>;
   signOut: () => Promise<void>;
   isAdmin: () => boolean;
   // Alias properties to match components that use them
@@ -30,6 +30,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [profile, setProfile] = useState<DbProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     // Set up authentication listener
@@ -110,12 +111,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       const authError = error as AuthError;
       toast.error(`Sign in failed: ${authError.message}`);
+      throw error;
     } finally {
       setIsLoading(false);
     }
   };
 
-  const signUp = async (email: string, password: string, name: string) => {
+  const signUp = async (email: string, password: string, name: string, role: string = "viewer") => {
     try {
       setIsLoading(true);
       const { data, error } = await supabase.auth.signUp({
@@ -123,7 +125,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         password,
         options: {
           data: {
-            name
+            name,
+            role
           }
         }
       });
@@ -133,13 +136,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       if (data.user) {
-        toast.success("Sign up successful! Check your email to confirm your account.");
+        toast.success("Sign up successful! You can now login with your credentials.");
       }
 
-      navigate("/login");
+      return data;
     } catch (error) {
       const authError = error as AuthError;
       toast.error(`Sign up failed: ${authError.message}`);
+      throw error;
     } finally {
       setIsLoading(false);
     }
@@ -157,7 +161,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSession(null);
       setUser(null);
       setProfile(null);
-      navigate("/");
+      
+      // Only navigate to home if not already there to prevent unnecessary redirects
+      if (location.pathname !== '/') {
+        navigate("/");
+      }
+      
       toast.success("Signed out successfully!");
     } catch (error) {
       const authError = error as AuthError;
