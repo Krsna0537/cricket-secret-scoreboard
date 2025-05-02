@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Session, User, AuthError } from "@supabase/supabase-js";
@@ -120,6 +119,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signUp = async (email: string, password: string, name: string, role: string = "viewer") => {
     try {
       setIsLoading(true);
+      
+      console.log("Signing up with role:", role); // Add debugging
+      
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -143,6 +145,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     } catch (error) {
       const authError = error as AuthError;
+      console.error("Sign up error:", authError); // Add detailed error logging
       toast.error(`Sign up failed: ${authError.message}`);
       throw error;
     } finally {

@@ -8,6 +8,8 @@ import { useToast } from "@/components/ui/use-toast";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { useNavigate } from "react-router-dom";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
 
 export const RegisterForm = () => {
   const [name, setName] = useState("");
@@ -16,12 +18,14 @@ export const RegisterForm = () => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [role, setRole] = useState("viewer");
   const [isRegistering, setIsRegistering] = useState(false);
+  const [error, setError] = useState("");
   const { signUp } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError("");
     
     if (password !== confirmPassword) {
       toast({
@@ -35,13 +39,16 @@ export const RegisterForm = () => {
     setIsRegistering(true);
 
     try {
-      await signUp(email, password, name, role as "admin" | "viewer");
+      // The role is passed directly as a string - viewer or admin
+      await signUp(email, password, name, role);
       toast({
         title: "Registration successful",
         description: "Your account has been created. You can now login.",
       });
       navigate("/login");
     } catch (error) {
+      console.error("Registration error:", error);
+      setError(error instanceof Error ? error.message : "Failed to create account");
       toast({
         title: "Registration failed",
         description: error instanceof Error ? error.message : "Failed to create account",
@@ -60,6 +67,14 @@ export const RegisterForm = () => {
           Sign up to create and manage cricket tournaments.
         </CardDescription>
       </CardHeader>
+      {error && (
+        <CardContent>
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        </CardContent>
+      )}
       <form onSubmit={handleSubmit}>
         <CardContent className="space-y-4">
           <div className="space-y-2">
