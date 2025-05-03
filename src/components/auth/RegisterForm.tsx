@@ -10,13 +10,14 @@ import { Label } from "@/components/ui/label";
 import { useNavigate } from "react-router-dom";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
+import { UserRole } from "@/types";
 
 export const RegisterForm = () => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [role, setRole] = useState("viewer");
+  const [role, setRole] = useState<UserRole>(UserRole.VIEWER);
   const [isRegistering, setIsRegistering] = useState(false);
   const [error, setError] = useState("");
   const { signUp } = useAuth();
@@ -39,7 +40,6 @@ export const RegisterForm = () => {
     setIsRegistering(true);
 
     try {
-      // The role is passed directly as a string - viewer or admin
       await signUp(email, password, name, role);
       toast({
         title: "Registration successful",
@@ -134,13 +134,17 @@ export const RegisterForm = () => {
           </div>
           <div className="space-y-2">
             <p className="text-sm font-medium">Account Type</p>
-            <RadioGroup value={role} onValueChange={setRole} className="flex flex-col space-y-1">
+            <RadioGroup 
+              value={role} 
+              onValueChange={(value) => setRole(value as UserRole)} 
+              className="flex flex-col space-y-1"
+            >
               <div className="flex items-center space-x-2">
-                <RadioGroupItem value="viewer" id="viewer" />
+                <RadioGroupItem value={UserRole.VIEWER} id="viewer" />
                 <Label htmlFor="viewer">Regular User (View tournaments)</Label>
               </div>
               <div className="flex items-center space-x-2">
-                <RadioGroupItem value="admin" id="admin" />
+                <RadioGroupItem value={UserRole.ADMIN} id="admin" />
                 <Label htmlFor="admin">Admin (Create and manage tournaments)</Label>
               </div>
             </RadioGroup>
