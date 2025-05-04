@@ -1,1 +1,8 @@
-project_id = "ispcrmlpeyfpvxljnhxk"
+
+[[triggers]]
+name = "handle_new_user"
+schema = "public"
+table = "users"
+when = "AFTER INSERT"
+for_each = "ROW"
+function = "handle_new_user"

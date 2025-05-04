@@ -121,7 +121,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       setIsLoading(true);
       
-      console.log("Signing up with role:", role); // Debug log
+      console.log("Signing up with role:", role); // For debugging
+      
+      // Ensure role is one of the valid enum values
+      const validRole = role === UserRole.ADMIN ? UserRole.ADMIN : UserRole.VIEWER;
       
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -129,7 +132,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         options: {
           data: {
             name,
-            role
+            role: validRole // Ensure we're sending a valid string role
           }
         }
       });
@@ -145,7 +148,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     } catch (error) {
       const authError = error as AuthError;
-      console.error("Sign up error:", authError); // Detailed error logging
+      console.error("Sign up error:", authError); 
       toast.error(`Sign up failed: ${authError.message}`);
       throw error;
     } finally {

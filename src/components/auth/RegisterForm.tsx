@@ -17,7 +17,7 @@ export const RegisterForm = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [role, setRole] = useState<UserRole>(UserRole.VIEWER);
+  const [role, setRole] = useState<string>(UserRole.VIEWER);
   const [isRegistering, setIsRegistering] = useState(false);
   const [error, setError] = useState("");
   const { signUp } = useAuth();
@@ -40,7 +40,7 @@ export const RegisterForm = () => {
     setIsRegistering(true);
 
     try {
-      // Convert enum value to string when passing to signUp
+      // Make sure to pass role as a simple string value
       await signUp(email, password, name, role);
       toast({
         title: "Registration successful",
@@ -137,7 +137,7 @@ export const RegisterForm = () => {
             <p className="text-sm font-medium">Account Type</p>
             <RadioGroup 
               value={role} 
-              onValueChange={(value) => setRole(value as UserRole)} 
+              onValueChange={(value) => setRole(value)} 
               className="flex flex-col space-y-1"
             >
               <div className="flex items-center space-x-2">
