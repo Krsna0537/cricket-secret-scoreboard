@@ -40,6 +40,7 @@ export const RegisterForm = () => {
     setIsRegistering(true);
 
     try {
+      // Convert enum value to string when passing to signUp
       await signUp(email, password, name, role);
       toast({
         title: "Registration successful",

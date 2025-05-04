@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Session, User, AuthError } from "@supabase/supabase-js";
@@ -116,11 +117,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const signUp = async (email: string, password: string, name: string, role: string = "viewer") => {
+  const signUp = async (email: string, password: string, name: string, role: string = UserRole.VIEWER) => {
     try {
       setIsLoading(true);
       
-      console.log("Signing up with role:", role); // Add debugging
+      console.log("Signing up with role:", role); // Debug log
       
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -141,11 +142,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         toast.success("Sign up successful! You can now login with your credentials.");
       }
       
-      // We're not returning data here, to match the Promise<void> return type in interface
       return;
     } catch (error) {
       const authError = error as AuthError;
-      console.error("Sign up error:", authError); // Add detailed error logging
+      console.error("Sign up error:", authError); // Detailed error logging
       toast.error(`Sign up failed: ${authError.message}`);
       throw error;
     } finally {
